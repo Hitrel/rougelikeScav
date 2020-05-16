@@ -23,6 +23,8 @@ public class Player : MovingObject
 
     private Animator animator;
     private int foods;
+
+    private bool pause;
     // Start is called before the first frame update
     new void Start()
     {
@@ -116,27 +118,27 @@ public class Player : MovingObject
     // Update is called once per frame
     void Update()
     {
-        if (!GameManager.instance.playersTurn)
-        {
-            return;
-        }
+        if (!pause) {
+            if (!GameManager.instance.playersTurn) {
+                return;
+            }
 
-        int horizontal = 0;
+            int horizontal = 0;
 
-        int vertical = 0;
-
-
-        horizontal = (int)Input.GetAxisRaw("Horizontal");
-
-        vertical = (int)Input.GetAxisRaw("Vertical");
-
-        if (horizontal != 0)
-            vertical = 0;
+            int vertical = 0;
 
 
-        if (horizontal != 0 || vertical != 0)
-        {
-            AttemptMove<Wall>(horizontal, vertical);
+            horizontal = (int)Input.GetAxisRaw("Horizontal");
+
+            vertical = (int)Input.GetAxisRaw("Vertical");
+
+            if (horizontal != 0)
+                vertical = 0;
+
+
+            if (horizontal != 0 || vertical != 0) {
+                AttemptMove<Wall>(horizontal, vertical);
+            }
         }
     }
     

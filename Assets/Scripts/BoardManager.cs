@@ -138,6 +138,7 @@ public class BoardManager : MonoBehaviour
         // Instantiate enemyCount random type of enemies at randomized positions. 
         LayoutObjectAtRandom(enemyTiles, enemyCount, enemyCount);
 
-
+        // Instantiate exit
+        Instantiate(exit, new Vector3(rows - 1, columns - 1, 0f), Quaternion.identity);
     }
 }

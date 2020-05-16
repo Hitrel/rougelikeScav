@@ -19,6 +19,10 @@ public class GameManager : MonoBehaviour
     private GameObject LevelImage;
     private Text LevelText;
     private bool doingSetup;
+    private bool waitforStart = true;
+    private bool pause = false;
+
+    public bool start = true;
     // Awake is always called before any Start functions.
     void Awake()
     {
@@ -43,8 +47,6 @@ public class GameManager : MonoBehaviour
         // Get a component reference to the attached BoardManager script.
         boardManager = GetComponent<BoardManager>();
 
-        // Call the InitGame function to initialize the first level.
-        InitGame();
     }
 
     private void OnLevelWasLoaded(int index)
@@ -54,6 +56,7 @@ public class GameManager : MonoBehaviour
     }
     public void InitGame ()
     {
+        waitforStart = false;
 
         doingSetup = true;
 
@@ -92,12 +95,13 @@ public class GameManager : MonoBehaviour
     
     void Update ()
     {
-        if (playersTurn || enemyMoving || doingSetup)
-        {
-            return;
-        }
+        if (!pause) {
+            if (playersTurn || enemyMoving || doingSetup || waitforStart) {
+                return;
+            }
 
-        StartCoroutine(MoveEnemies());
+            StartCoroutine(MoveEnemies());
+        }
     }
 
     public void AddEnemyToList(Enemy enemy)
