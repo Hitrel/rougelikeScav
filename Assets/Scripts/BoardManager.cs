@@ -4,141 +4,238 @@ using System.Collections.Generic;
 using UnityEngine;
 using Random = UnityEngine.Random;
 
-public class BoardManager : MonoBehaviour
-{
+public class BoardManager : MonoBehaviour {
     [Serializable]
-    public class Count
-    {
-        public int minimum;
-        public int maximum;
+    [HideInInspector] public class RoomType {
+        public int rows { get; }
+        public int columns { get; }
 
-
-        public Count (int min, int max)
-        {
-            minimum = min;
-            maximum = max;
+        public RoomType(int rows, int cols) {
+            this.rows = rows;
+            this.columns = cols;
         }
+        public (int, int) GetRoom() { return (rows, columns); }
     }
 
-    public int columns = 8;
-    public int rows = 8;
+    public enum Direction { N, S, W, E, NW, NE, SW, SE};
 
-    public Count wallCount = new Count(5, 9);
-    public Count foodCount = new Count(1, 5);
-    public GameObject exit;
-    public GameObject[] floorTiles;
-    public GameObject[] wallTiles;
-    public GameObject[] foodTiles;
-    public GameObject[] enemyTiles;
-    public GameObject[] outerWallTiles;
-
-    private Transform boardHolder;
-
-    private List <Vector3> gridPostions = new List <Vector3> ();
-
-    void InitializeList ()
-    {
-        gridPostions.Clear ();
-
-        for (int x = 1; x < columns-1; x++)
-        {
-            for (int y = 1; y < rows-1; y++)
-            {
-                gridPostions.Add(new Vector3(x, y, 0f));
+    class Direct {
+        public static Direction GetDirection(Vector3 p1, Vector3 p2) {
+            Vector3 temp = p1 - p2;
+            if (temp.x < 0 && temp.y < 0) {
+                return Direction.NE;
+            } else if (temp.x < 0 && temp.y == 0) {
+                return Direction.E;
+            } else if (temp.x < 0 && temp.y > 0) {
+                return Direction.SE;
+            } else if (temp.x == 0 && temp.y < 0) {
+                return Direction.N;
+            } else if (temp.x == 0 && temp.y > 0) {
+                return Direction.S;
+            } else if (temp.x > 0 && temp.y < 0) {
+                return Direction.NW;
+            } else if (temp.x > 0 && temp.y == 0) {
+                return Direction.W;
+            } else if (temp.x > 0 && temp.y > 0) {
+                return Direction.SW;
             }
+
+            throw new Exception("Error Direction {}" + temp.ToString());
         }
     }
 
-    // Sets up the outer walls and floor (background) of the game board.
-    void BoardSetup ()
-    {
-        // Instantiate Board and set boardHolder to its transform.
-        boardHolder = transform;
+    [HideInInspector] public GameObject startRoom;
 
-        // Loop along x axis, starting from -1 (to fill corner) with floor or outerwall edge tiles.
-        for (int x = -1; x < columns + 1; x++)
-        {
-            // Loop along y axis, start from -1 to place floor or outerwall tiles.
-            for (int y = -1; y < rows + 1; y++)
-            {
-                // Choose a random tile from our array of floor tile prefabs and prepare to instantiate it.
-                GameObject toInstantiate = floorTiles[Random.Range(0, floorTiles.Length)];
+    [HideInInspector] public GameObject exitRoom;
 
-                if (x == -1 || x == columns || y == -1 || y == rows)
-                {
-                    toInstantiate = outerWallTiles[Random.Range(0, outerWallTiles.Length)];
+    public List<GameObject> rooms;
+
+    [HideInInspector] public RoomManager roomManager;
+
+    public GameObject roomTemplate;
+
+    private int positionShift;
+
+    // Path Generation
+    [HideInInspector] public class Path {
+        public int left_index { get; set; }
+        public int right_index { get; set; }
+        public float distance { get; set; }
+
+        public Path(int l, int r, float d) {
+            left_index = l;
+            right_index = r;
+            distance = d;
+        }
+    }
+
+    private List<Path> paths;
+
+    private List<Path> tree;
+
+
+    private void Init(int level) {
+        rooms = new List<GameObject>();
+
+        startRoom = GameObject.Find("StartRoom");
+        exitRoom = GameObject.Find("ExitRoom");
+        roomManager = GetComponent<RoomManager>();
+
+        exitRoom.SetActive(false);
+
+        positionShift = (int)Mathf.Log(level + 1, 2) * 10;
+
+        positionShift = positionShift > 40 ? 40 : positionShift;
+
+        paths = new List<Path>();
+
+        tree = new List<Path>();
+
+    }
+
+    public void SetupScene(int level) {
+        Init(level);
+
+        rooms.Add(startRoom);
+
+        int roomGenerateTimes = (int)Mathf.Log(level + 1, 2) * 5;
+
+        for (int i = 0; i < roomGenerateTimes; i++) {
+            Vector3 randomPosition = RandomPosition();
+            RoomType randomRoomType = RandomType();
+
+            GameObject newRoom = Instantiate(roomTemplate, randomPosition, Quaternion.identity) as GameObject;
+            newRoom.GetComponent<Room>().SetSize(randomRoomType.rows, randomRoomType.columns);
+
+            foreach (GameObject room in rooms) {
+                if (newRoom == null) {
+                    break;
                 }
-                // Instantiate the GameObject instance using the prefab chosen for toInstantiate at the Vector3 corresponding to current grid position in loop, cast it to GameObject.
-                GameObject instance = Instantiate(toInstantiate, (new Vector3(x, y, 0f)), Quaternion.identity) as GameObject;
-                // Set the parent of our newly instantiated object instance to boardHolder, this is just organizational to avoid cluttering herarchy.
-                instance.transform.SetParent(boardHolder);
 
+                if (IsOverlap(newRoom, room)) {
+                    Destroy(newRoom);
+                    newRoom = null;
+                }
+            }
+
+            if (newRoom != null) {
+                roomManager.SetupScene(level, newRoom);
+                rooms.Add(newRoom);
             }
         }
-    }
 
-    // RandomPosition returns a random position from our list gridPositions.
-    Vector3 RandomPosition ()
-    {
-        // Declare an integer randomIndex, set it's value to a random number between 0 and the count of items in our List gridPositions.
-        int randomIndex = Random.Range(0, gridPostions.Count);
-
-        // Declare an variable of type Vector3 called randomPosition, set it's value to the entry at randomIndex from our List gridPositions.
-        Vector3 randomPosition = gridPostions[randomIndex];
-
-        // Remove the entry at randomIndex from the list so that is can't be re-used.
-        gridPostions.RemoveAt(randomIndex);
-
-        // Return the randomly selected Vector3 position.
-        return randomPosition;
-
-    }
-    
-    // LayoutObjectAtRandom accepts an array of GameObjects to choose from along with a minimum and maximum range for the number of objects to create.
-    void LayoutObjectAtRandom (GameObject[] tileArray, int minimum, int maximum)
-    {
-        // Choose a random number of objects to instantiate within the minimum and maximum limits.
-        int objectCount = Random.Range(minimum, maximum + 1);
-
-        // Instantiate objects until the randomly chosen limit objectCount is reached.
-        for (int i = 0; i < objectCount; i++)
-        {
-
-            // Choose a position for randomPosition by getting a random position from our list of available Vector3s stored in gridPositions.
+        while (true) {
+        start:
             Vector3 randomPosition = RandomPosition();
 
-            // Choose a random tile from tileArray and assign it to tileChoice.
-            GameObject tileChoice = tileArray[Random.Range(0, tileArray.Length)];
+            exitRoom.transform.position = randomPosition;
 
-            // Instantiate tileChoice at the position returned by RandomPosition with no change in rotation.
-            Instantiate(tileChoice, randomPosition, Quaternion.identity);
+            foreach (GameObject room in rooms) {
+                if (IsOverlap(exitRoom, room)) {
+                    goto start;
+                }
+            }
 
+            exitRoom.SetActive(true);
+            rooms.Add(exitRoom);
+            break;
+        }
+
+        PathFindMGT();
+
+    }
+
+    private bool IsOverlap(GameObject room1, GameObject room2) {
+
+        RoomType getSize(Room room) {
+            return new RoomType(room.rows + 1, room.columns + 1);
+        }
+
+        Vector3 room1Position = room1.transform.position;
+        RoomType room1Size = getSize(room1.GetComponent<Room>());
+
+        Vector3 room2Position = room2.transform.position;
+        RoomType room2Size = getSize(room2.GetComponent<Room>());
+
+        if (room1Position.x + room1Size.columns >= room2Position.x &&
+            room2Position.x + room2Size.columns >= room1Position.x &&
+            room1Position.y + room1Size.rows >= room2Position.y &&
+            room2Position.y + room2Size.rows >= room1Position.y) {
+
+            return true;
+        } else {
+            return false;
         }
     }
 
-    // SetupScene initializes our leve and calls the previous functions to lay out the game board.
-    public void SetupScene (int level)
-    {
+    private Vector3 RandomPosition() {
+        int randomX = (int)Random.Range(startRoom.transform.position.x - positionShift, startRoom.transform.position.x + positionShift);
+        int randomY = (int)Random.Range(startRoom.transform.position.y - positionShift, startRoom.transform.position.y + positionShift);
+
+        return new Vector3(randomX, randomY, startRoom.transform.position.z);
+    }
+
+    private RoomType RandomType() {
+        int randomRows = Random.Range(3, 10);
+        int randomCols = Random.Range(3, 10);
+        return new RoomType(randomRows, randomCols);
+    }
+
+    private void PathFindMGT() {
+
+        for (int i = 0; i < rooms.Count; i++) {
+            for (int j = 0; j < rooms.Count; j++) {
+                if (j != i) {
+                    float temp = Vector3.Distance(rooms[i].transform.position, rooms[j].transform.position);
+
+                    paths.Add(new Path(i, j, temp));
+                }
+            }
+        }
+
+        List<int> traverse = new List<int>();
+        traverse.Add(0);
+        List<int> untraved = new List<int>(rooms.Count - 1);
+
+        for (int i = 0; i < rooms.Count - 1; i++) {
+            untraved.Add(i + 1);
+        }
+
+        while (untraved.Count > 0) {
+
+            float minDistance = float.MaxValue;
+            int left = 0;
+            int right = 0;
+
+            foreach (int i in traverse) {
+                foreach (Path p in paths) {
+                    if (p.left_index == i && !traverse.Contains(p.right_index)) {
+                        if (p.distance < minDistance) {
+                            minDistance = p.distance;
+                            right = p.right_index;
+                            left = i;
+                        }
+                    }
+                }
+            }
+            if (!traverse.Contains(right)) {
+                traverse.Add(right);
+                untraved.Remove(right);
+                tree.Add(new Path(left, right, minDistance));
+            }
+
+        }
+
+        foreach (Path path in tree) {
+            PathGeneration(path);
+        }
+    }
+
+    private void PathGeneration(Path path) {
         
-        // Creates the outer walls and floor.
-        BoardSetup();
-
-        // Reset our list of gridpositions.
-        InitializeList();
-
-        // Instantiate a random number of wall tiles based on minimum and maximum, at randomized position.
-        LayoutObjectAtRandom(wallTiles, wallCount.minimum, wallCount.maximum);
-
-        // Instantiate a random number of bood tiles based on minimum and maximum, at randomized position.
-        LayoutObjectAtRandom(foodTiles, foodCount.minimum, foodCount.maximum);
-
-        // Determine number of enemies based on current level number, based on a logarithmic progression.
-        int enemyCount = (int)Mathf.Log(level, 2f);
-
-        // Instantiate enemyCount random type of enemies at randomized positions. 
-        LayoutObjectAtRandom(enemyTiles, enemyCount, enemyCount);
-
-        // Instantiate exit
-        Instantiate(exit, new Vector3(rows - 1, columns - 1, 0f), Quaternion.identity);
+        GameObject leftRoom = rooms[path.left_index];
+        GameObject rightRoom = rooms[path.right_index];
+        
+        
     }
 }

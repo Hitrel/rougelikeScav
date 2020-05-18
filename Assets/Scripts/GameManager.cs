@@ -10,8 +10,9 @@ public class GameManager : MonoBehaviour
     public int playerFoodPoints = 100;
     [HideInInspector] public bool playersTurn = true;
     public static GameManager instance = null; // Static instance of GameManager which allows it to be accessed by any other script.
+    public GameObject boardObject;
     private BoardManager boardManager; // Store a reference to our BoardManager which will set up the level.
-    private int level = 1; // Current level number
+    private int level = 100; // Current level number
     private List<Enemy> enemies;
     private bool enemyMoving;
 
@@ -45,7 +46,7 @@ public class GameManager : MonoBehaviour
         enemies = new List<Enemy>();
 
         // Get a component reference to the attached BoardManager script.
-        boardManager = GetComponent<BoardManager>();
+        boardManager = boardObject.GetComponent<BoardManager>();
 
     }
 
